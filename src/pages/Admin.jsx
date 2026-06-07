@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Package, User, Phone, CheckCircle2, Copy, X, Link as LinkIcon, ExternalLink, Box, LayoutDashboard, Search } from 'lucide-react';
 import { STATUSES } from '../data/sharedData';
+import { supabase } from '../lib/supabase';
 
-export default function Admin({ shipments, setShipments }) {
+export default function Admin() {
+  const [shipments, setShipments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   
@@ -13,7 +17,27 @@ export default function Admin({ shipments, setShipments }) {
   const [createdTrackingNumber, setCreatedTrackingNumber] = useState('');
   const [isCopied, setIsCopied] = useState(false);
 
-  const handleCreateShipment = (e) => {
+  useEffect(() => {
+    fetchShipments();
+  }, []);
+
+  const fetchShipments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('shipments')
+        .select('*')
+        .order('created_at', { ascending: false });
+        
+      if (error) throw error;
+      if (data) setShipments(data);
+    } catch (error) {
+      console.error('Error fetching shipments:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateShipment = async (e) => {
     e.preventDefault();
 
     // Generate random 6 digit tracking number to match HFD-100200 format
@@ -22,32 +46,61 @@ export default function Admin({ shipments, setShipments }) {
 
     const phoneLast4 = customerPhone.replace(/\D/g, '').slice(-4);
 
-    const newShipment = {
-      id: Date.now().toString(),
-      trackingNumber,
-      customerName,
-      phoneLast4,
-      status: 'Order Confirmed',
-      price: '29.00'
-    };
+    try {
+      const { data, error } = await supabase
+        .from('shipments')
+        .insert([
+          {
+            tracking_number: trackingNumber,
+            customer_name: customerName,
+            phone_last4: phoneLast4,
+            status: 'Order Confirmed',
+            price: '29.00'
+          }
+        ])
+        .select();
 
-    setShipments([newShipment, ...shipments]);
-    
-    // Generate Shareable URL
-    const url = `${window.location.origin}/portal?track=${trackingNumber}`;
-    setCreatedTrackingNumber(trackingNumber);
-    setCreatedShipmentUrl(url);
-    setIsCopied(false);
-    setShowModal(true);
+      if (error) throw error;
 
-    setCustomerName('');
-    setCustomerPhone('');
+      if (data) {
+        setShipments([data[0], ...shipments]);
+        
+        // Generate Shareable URL
+        const url = `${window.location.origin}/portal?track=${trackingNumber}`;
+        setCreatedTrackingNumber(trackingNumber);
+        setCreatedShipmentUrl(url);
+        setIsCopied(false);
+        setShowModal(true);
+
+        setCustomerName('');
+        setCustomerPhone('');
+      }
+    } catch (error) {
+      console.error('Error creating shipment:', error);
+      alert('Failed to create shipment.');
+    }
   };
 
-  const handleStatusChange = (id, newStatus) => {
+  const handleStatusChange = async (id, newStatus) => {
+    // Optimistic update
     setShipments(shipments.map(s => 
       s.id === id ? { ...s, status: newStatus } : s
     ));
+
+    try {
+      const { error } = await supabase
+        .from('shipments')
+        .update({ status: newStatus })
+        .eq('id', id);
+
+      if (error) {
+        throw error;
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Failed to update status.');
+      fetchShipments(); // Revert on failure
+    }
   };
 
   const handleCopyLink = () => {
@@ -208,7 +261,13 @@ export default function Admin({ shipments, setShipments }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {shipments.length === 0 ? (
+                    {loading ? (
+                      <tr>
+                        <td colSpan="4" className="p-8 text-center text-slate-400">
+                          Loading shipments...
+                        </td>
+                      </tr>
+                    ) : shipments.length === 0 ? (
                       <tr>
                         <td colSpan="4" className="p-8 text-center text-slate-400">
                           No active shipments found.
@@ -219,14 +278,14 @@ export default function Admin({ shipments, setShipments }) {
                         <tr key={shipment.id} className="hover:bg-blue-50/50 transition-colors">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className="font-mono font-bold text-primary bg-slate-100 px-2 py-1 rounded">
-                              {shipment.trackingNumber}
+                              {shipment.tracking_number}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-sm font-medium text-slate-800">
-                            {shipment.customerName}
+                            {shipment.customer_name}
                           </td>
                           <td className="px-6 py-4 text-sm text-slate-500 text-center font-mono">
-                            {shipment.phoneLast4}
+                            {shipment.phone_last4}
                           </td>
                           <td className="px-6 py-4 text-sm">
                             <select

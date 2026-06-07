@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import { STATUSES, mockPickupPoints } from '../data/sharedData';
+import { supabase } from '../lib/supabase';
 
-export default function Portal({ shipments }) {
+export default function Portal() {
   const [searchParams] = useSearchParams();
   const trackParam = searchParams.get('track');
   
   const [activeShipment, setActiveShipment] = useState(null);
+  const [loading, setLoading] = useState(true);
   
   // State Machine
   const [step, setStep] = useState(1);
@@ -29,15 +31,35 @@ export default function Portal({ shipments }) {
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
-    if (trackParam) {
-      const found = shipments.find(s => s.trackingNumber.toUpperCase() === trackParam.toUpperCase());
-      if (found) {
-        setActiveShipment(found);
+    const fetchShipment = async () => {
+      if (!trackParam) {
+        setLoading(false);
+        return;
       }
-    }
-  }, [trackParam, shipments]);
+      
+      try {
+        const { data, error } = await supabase
+          .from('shipments')
+          .select('*')
+          .eq('tracking_number', trackParam.toUpperCase())
+          .single();
+          
+        if (data) setActiveShipment(data);
+      } catch (error) {
+        console.error('Error fetching shipment:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const displayShipment = activeShipment || shipments[0];
+    fetchShipment();
+  }, [trackParam]);
+
+  if (loading) {
+     return <div className="p-8 text-center font-bold text-black" dir="rtl">טוען נתונים...</div>;
+  }
+
+  const displayShipment = activeShipment;
 
   if (!displayShipment) {
     return <div className="p-8 text-center font-bold text-black" dir="rtl">לא נמצאו חבילות.</div>;
@@ -78,7 +100,7 @@ export default function Portal({ shipments }) {
     <div className="p-4 border-t-2 border-black mt-4 bg-white">
        <h3 className="text-lg font-bold bg-black text-white p-2 text-center uppercase">יש לך חבילה בהמתנה!</h3>
        <div className="border-4 border-black p-4 mt-2 bg-gray-100">
-         <p className="font-bold text-black text-lg mb-2">מספר מעקב: <span className="bg-yellow-300 px-2 py-1 border-2 border-black">{displayShipment.trackingNumber}</span></p>
+         <p className="font-bold text-black text-lg mb-2">מספר מעקב: <span className="bg-yellow-300 px-2 py-1 border-2 border-black">{displayShipment.tracking_number}</span></p>
          <p className="font-bold text-[#ff0000] text-xl border-t-4 border-black pt-2 mt-2">סכום לתשלום: {displayShipment.price || '29.00'} ₪</p>
        </div>
     </div>
@@ -107,7 +129,7 @@ export default function Portal({ shipments }) {
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-black mb-1">מספר טלפון נייד:</label>
+                <label className="block text-sm font-bold text-black mb-1">מספר טלפון נייד (מסתיים ב-{displayShipment.phone_last4}):</label>
                 <input 
                   type="tel" className="input-field rounded-none border-2 border-black" 
                   value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d-]/g, ''))} required
@@ -120,7 +142,11 @@ export default function Portal({ shipments }) {
                   value={fullName} onChange={(e) => setFullName(e.target.value)} required
                 />
               </div>
-              <button type="submit" disabled={!(idNumber.length===9 && phone.length>=9 && fullName.length>2)} className="w-full bg-[#0056b3] hover:bg-blue-800 text-white font-bold py-3 mt-4 border-4 border-black uppercase disabled:bg-gray-500 cursor-pointer">
+              <button 
+                type="submit" 
+                disabled={!(idNumber.length===9 && phone.length>=9 && fullName.length>2 && phone.endsWith(displayShipment.phone_last4))} 
+                className="w-full bg-[#0056b3] hover:bg-blue-800 text-white font-bold py-3 mt-4 border-4 border-black uppercase disabled:bg-gray-500 cursor-pointer"
+              >
                 אישור והמשך לבחירת נקודה
               </button>
             </form>
