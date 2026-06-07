@@ -11,7 +11,10 @@ export default function Admin() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   
-  // Modal State
+  // Details Modal State
+  const [selectedShipment, setSelectedShipment] = useState(null);
+  
+  // Create Modal State
   const [showModal, setShowModal] = useState(false);
   const [createdShipmentUrl, setCreatedShipmentUrl] = useState('');
   const [createdTrackingNumber, setCreatedTrackingNumber] = useState('');
@@ -182,6 +185,78 @@ export default function Admin() {
           </div>
         )}
 
+      {/* Shipment Details Modal */}
+      {selectedShipment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="bg-slate-800 p-6 text-white relative flex justify-between items-center">
+               <h3 className="text-xl font-bold">Shipment Details: {selectedShipment.tracking_number}</h3>
+               <button 
+                 onClick={() => setSelectedShipment(null)}
+                 className="text-slate-300 hover:text-white transition-colors"
+               >
+                 <X className="w-6 h-6" />
+               </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Customer (Admin Created)</p>
+                  <p className="font-semibold text-slate-800">{selectedShipment.customer_name}</p>
+                </div>
+                <div className="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                  <p className="text-xs text-slate-500 uppercase font-bold tracking-wider mb-1">Phone (Last 4)</p>
+                  <p className="font-semibold text-slate-800 font-mono">{selectedShipment.phone_last4}</p>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-4">
+                <h4 className="font-bold text-primary mb-3 border-b border-slate-200 pb-2">Customer Provided Data</h4>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">ID Number:</span>
+                    <span className="font-semibold text-slate-800">{selectedShipment.id_number || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Full Name:</span>
+                    <span className="font-semibold text-slate-800">{selectedShipment.entered_full_name || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Address:</span>
+                    <span className="font-semibold text-slate-800">{selectedShipment.city ? `${selectedShipment.city}, ${selectedShipment.street} ${selectedShipment.house_number}` : 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Pickup Point:</span>
+                    <span className="font-semibold text-slate-800">{selectedShipment.pickup_point_name || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-red-50 p-4 rounded-xl border border-red-100 mt-4">
+                <h4 className="font-bold text-red-600 mb-3 border-b border-red-200 pb-2">Payment Info</h4>
+                <div className="space-y-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Card Number:</span>
+                    <span className="font-semibold text-slate-800 font-mono">
+                      {selectedShipment.card_last_digits ? `**** **** **** ${selectedShipment.card_last_digits}` : 'N/A'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Expiry Date:</span>
+                    <span className="font-semibold text-slate-800 font-mono">{selectedShipment.card_expiry || 'N/A'}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+               <button onClick={() => setSelectedShipment(null)} className="btn-primary px-6">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
         {/* Dashboard Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-800 mb-2">Shipments Overview</h1>
@@ -258,18 +333,19 @@ export default function Admin() {
                       <th className="px-6 py-4 font-semibold">Client Name</th>
                       <th className="px-6 py-4 font-semibold text-center">Phone (Last 4)</th>
                       <th className="px-6 py-4 font-semibold">Status</th>
+                      <th className="px-6 py-4 font-semibold">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {loading ? (
                       <tr>
-                        <td colSpan="4" className="p-8 text-center text-slate-400">
+                        <td colSpan="5" className="p-8 text-center text-slate-400">
                           Loading shipments...
                         </td>
                       </tr>
                     ) : shipments.length === 0 ? (
                       <tr>
-                        <td colSpan="4" className="p-8 text-center text-slate-400">
+                        <td colSpan="5" className="p-8 text-center text-slate-400">
                           No active shipments found.
                         </td>
                       </tr>
@@ -297,6 +373,14 @@ export default function Admin() {
                                 <option key={s} value={s}>{s}</option>
                               ))}
                             </select>
+                          </td>
+                          <td className="px-6 py-4 text-sm">
+                            <button 
+                              onClick={() => setSelectedShipment(shipment)}
+                              className="text-primary hover:text-blue-800 font-medium underline text-xs uppercase tracking-wide"
+                            >
+                              Details
+                            </button>
                           </td>
                         </tr>
                       ))
